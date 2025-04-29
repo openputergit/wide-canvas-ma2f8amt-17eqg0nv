@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+</head>
+<body class="bg-gray-100 min-h-screen font-[Inter]">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Weather Dashboard</h1>
+            
+            <div class="flex flex-col md:flex-row gap-4 mb-6">
+                <input type="text" id="cityInput" placeholder="Enter city name" 
+                    class="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="getWeather()" 
+                    class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                    <i class="bi bi-search mr-2"></i>Search
+                </button>
+            </div>
+
+            <div id="weatherInfo" class="hidden">
+                <!-- Current Weather -->
+                <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white mb-8">
+                    <div class="flex flex-col md:flex-row justify-between items-center">
+                        <div>
+                            <h2 id="cityName" class="text-2xl font-bold mb-2"></h2>
+                            <p id="currentDate" class="text-lg opacity-90"></p>
+                            <p id="currentTemp" class="text-4xl font-bold my-4"></p>
+                            <p id="weatherDescription" class="text-xl"></p>
+                        </div>
+                        <div class="text-center mt-4 md:mt-0">
+                            <i id="weatherIcon" class="bi text-6xl mb-2"></i>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <i class="bi bi-droplet-fill"></i>
+                                    <span id="humidity"></span>
+                                </div>
+                                <div>
+                                    <i class="bi bi-wind"></i>
+                                    <span id="windSpeed"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5-Day Forecast -->
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">5-Day Forecast</h3>
+                <div id="forecast" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4"></div>
+            </div>
+
+            <div id="error" class="hidden text-red-500 text-center py-4"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = '1f6bf99f68e12c256c1f5f067b60ff67'; // Free OpenWeatherMap API key
+
+        async function getWeather() {
+            const cityInput = document.getElementById('cityInput').value;
+            if (!cityInput) return;
+
+            try {
+                // Get current weather
+                const currentResponse = await fetch(
+                    `https://api.openweathermap.org/data/2.5/weather?q=${cityInput}&appid=${API_KEY}&units=metric`
+                );
+                if (!currentResponse.ok) throw new Error('City not found');
+                const currentData = await currentResponse.json();
+
+                // Get 5-day forecast
+                const forecastResponse = await fetch(
+                    `https://api.openweathermap.org/data/2.5/forecast?q=${cityInput}&appid=${API_KEY}&units=metric`
+                );
+                const forecastData = await forecastResponse.json();
+
+                displayCurrentWeather(currentData);
+                displayForecast(forecastData);
+
+                document.getElementById('weatherInfo').classList.remove('hidden');
+                document.getElementById('error').classList.add('hidden');
+            } catch (error) {
+                document.getElementById('weatherInfo').classList.add('hidden');
+                document.getElementById('error').classList.remove('hidden');
+                document.getElementById('error').textContent = 'City not found. Please try again.';
+            }
+        }
+
+        function displayCurrentWeather(data) {
+            const date = new Date();
+            document.getElementById('cityName').textContent = `${data.name}, ${data.sys.country}`;
+            document.getElementById('currentDate').textContent = date.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+            document.getElementById('currentTemp').textContent = `${Math.round(data.main.temp)}°C`;
+            document.getElementById('weatherDescription').textContent = data.weather[0].description;
+            document.getElementById('humidity').textContent = `${data.main.humidity}%`;
+            document.getElementById('windSpeed').textContent = `${data.wind.speed} m/s`;
+            
+            // Set weather icon
+            const iconClass = getWeatherIconClass(data.weather[0].id);
+            document.getElementById('weatherIcon').className = `bi ${iconClass} text-6xl`;
+        }
+
+        function displayForecast(data) {
+            const forecastDiv = document.getElementById('forecast');
+            forecastDiv.innerHTML = '';
+
+            // Get one forecast per day (excluding current day)
+            const dailyForecasts = data.list.filter(item => 
+                new Date(item.dt * 1000).getHours() === 12
+            ).slice(0, 5);
+
+            dailyForecasts.forEach(day => {
+                const date = new Date(day.dt * 1000);
+                const iconClass = getWeatherIconClass(day.weather[0].id);
+                
+                const dayCard = `
+                    <div class="bg-white rounded-xl p-4 shadow-sm text-center">
+                        <p class="font-semibold">${date.toLocaleDateString('en-US', { weekday: 'short' })}</p>
+                        <i class="bi ${iconClass} text-4xl my-2"></i>
+                        <p class="text-xl font-bold">${Math.round(day.main.temp)}°C</p>
+                        <p class="text-sm text-gray-600">${day.weather[0].description}</p>
+                    </div>
+                `;
+                forecastDiv.innerHTML += dayCard;
+            });
+        }
+
+        function getWeatherIconClass(code) {
+            if (code >= 200 && code < 300) return 'bi-cloud-lightning-fill';
+            if (code >= 300 && code < 500) return 'bi-cloud-drizzle-fill';
+            if (code >= 500 && code < 600) return 'bi-cloud-rain-fill';
+            if (code >= 600 && code < 700) return 'bi-cloud-snow-fill';
+            if (code >= 700 && code < 800) return 'bi-cloud-haze-fill';
+            if (code === 800) return 'bi-sun-fill';
+            return 'bi-cloud-fill';
+        }
+
+        // Initialize with a default city
+        window.onload = () => {
+            document.getElementById('cityInput').value = 'London';
+            getWeather();
+        };
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
